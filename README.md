@@ -70,5 +70,32 @@ Additional flags:
 
 For more information on each command, use the `-h` flag:
 
+## Automatic Renewal with Cron
 
+To automatically renew your certificate every three months using cron on Linux, follow these steps:
+
+1. Open your crontab file for editing:
+   ```
+   crontab -e
+   ```
+
+2. Add the following line to run the renewal process every 3 months:
+   ```
+   0 0 1 */3 * /path/to/cdncert auto -domain example.com -email your@email.com -access-key YOUR_ACCESS_KEY -secret-key YOUR_SECRET_KEY -prod true >> /path/to/cdncert_renewal.log 2>&1
+   ```
+
+   Replace the following:
+   - `/path/to/cdncert` with the actual path to your cdncert executable
+   - `example.com` with your domain
+   - `your@email.com` with your email address
+   - `YOUR_ACCESS_KEY` and `YOUR_SECRET_KEY` with your Aliyun credentials
+   - `/path/to/cdncert_renewal.log` with the path where you want to store the log file
+
+   This cron job will run at midnight on the first day of every third month.
+
+3. Save and exit the crontab editor.
+
+Make sure the cdncert executable has the necessary permissions to run, and that the log file path is writable.
+
+Note: It's recommended to run the renewal process more frequently than the actual expiration date of your certificate to account for potential issues. Let's Encrypt certificates are valid for 90 days, so running the renewal every 60 days (2 months) might be a safer option:
 

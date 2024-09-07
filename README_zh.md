@@ -66,3 +66,33 @@ CDNCert 支持三个主要命令：
 - `-region`：指定阿里云 CDN 区域（默认为 cn-hangzhou）
 
 要获取每个命令的更多信息，请使用 `-h` 标志。
+
+## 使用 Cron 自动续期
+
+要使用 Linux 上的 cron 每三个月自动续期您的证书，请按照以下步骤操作：
+
+1. 打开您的 crontab 文件进行编辑：
+   ```
+   crontab -e
+   ```
+
+2. 添加以下行以每 3 个月运行一次续期过程：
+   ```
+   0 0 1 */3 * /path/to/cdncert auto -domain example.com -email your@email.com -access-key YOUR_ACCESS_KEY -secret-key YOUR_SECRET_KEY -prod true >> /path/to/cdncert_renewal.log 2>&1
+   ```
+
+   替换以下内容：
+   - `/path/to/cdncert` 为您的 cdncert 可执行文件的实际路径
+   - `example.com` 为您的域名
+   - `your@email.com` 为您的电子邮件地址
+   - `YOUR_ACCESS_KEY` 和 `YOUR_SECRET_KEY` 为您的阿里云凭证
+   - `/path/to/cdncert_renewal.log` 为您想要存储日志文件的路径
+
+   这个 cron 任务将在每三个月的第一天午夜运行。
+
+3. 保存并退出 crontab 编辑器。
+
+确保 cdncert 可执行文件具有必要的运行权限，并且日志文件路径是可写的。
+
+注意：建议比证书实际过期日期更频繁地运行续期过程，以应对潜在的问题。Let's Encrypt 证书的有效期为 90 天，所以每 60 天（2 个月）运行一次续期可能是一个更安全的选择：
+
