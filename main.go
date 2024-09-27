@@ -14,27 +14,34 @@ import (
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cdn"
 	"github.com/go-acme/lego/v4/certificate"
+	"github.com/go-acme/lego/v4/challenge/dns01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/providers/dns/alidns"
 	"github.com/go-acme/lego/v4/registration"
 )
 
 var (
-	domain     string
-	email      string
-	accessKey  string
-	secretKey  string
-	production bool
-	region     string
+	domain       string
+	email        string
+	dnsAccessKey string
+	dnsSecretKey string
+	cdnAccessKey string
+	cdnSecretKey string
+	production   bool
+	region       string
+	onlyObtain   bool
 )
 
 func init() {
 	flag.StringVar(&domain, "domain", "", "The domain for which to obtain/upload the SSL certificate")
 	flag.StringVar(&email, "email", "", "Contact email address for ACME registration")
-	flag.StringVar(&accessKey, "access-key", "", "Aliyun Access Key")
-	flag.StringVar(&secretKey, "secret-key", "", "Aliyun Secret Key")
+	flag.StringVar(&dnsAccessKey, "dns-access-key", "", "Aliyun Access Key")
+	flag.StringVar(&dnsSecretKey, "dns-secret-key", "", "Aliyun Secret Key")
+	flag.StringVar(&cdnAccessKey, "cdn-access-key", "", "Aliyun CDN Access Key")
+	flag.StringVar(&cdnSecretKey, "cdn-secret-key", "", "Aliyun CDN Secret Key")
 	flag.BoolVar(&production, "prod", false, "Set to true to use Let's Encrypt's production environment")
 	flag.StringVar(&region, "region", "cn-hangzhou", "Aliyun CDN region")
+	flag.BoolVar(&onlyObtain, "obtain", false, "Only obtain certificate, do not upload to Aliyun CDN")
 }
 
 func main() {
@@ -42,43 +49,34 @@ func main() {
 		printUsage()
 		os.Exit(1)
 	}
-
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
 
-	if domain == "" || email == "" || accessKey == "" || secretKey == "" {
-		log.Fatal("All parameters (domain, email, access-key, and secret-key) are required.")
+	if domain == "" || email == "" || dnsAccessKey == "" || dnsSecretKey == "" || cdnAccessKey == "" || cdnSecretKey == "" {
+		log.Fatal("All parameters (domain, email, dns-access-key, dns-secret-key, cdn-access-key, and cdn-secret-key) are required.")
 	}
 
-	// 设置 Aliyun DNS 所需的环境变量
-	os.Setenv("ALICLOUD_ACCESS_KEY", accessKey)
-	os.Setenv("ALICLOUD_SECRET_KEY", secretKey)
+	certs, err := obtainCertificate(dnsAccessKey, dnsSecretKey)
+	if err != nil {
+		log.Fatalf("Error obtaining certificate: %v", err)
+	}
 
-	switch os.Args[1] {
-	case "obtain":
-		obtainCertificate()
-	case "upload":
-		uploadCertificate()
-	case "auto":
-		err := autoObtainAndUpload()
-		if err != nil {
-			log.Fatalf("Error in auto mode: %v", err)
-		}
-	default:
-		printUsage()
-		os.Exit(1)
+	err = saveCertificateAndKey(certs)
+	if err != nil {
+		log.Fatalf("Error saving certificate and key: %v", err)
+	}
+
+	if !onlyObtain {
+		uploadCertificate(cdnAccessKey, cdnSecretKey)
 	}
 }
 
 func printUsage() {
 	fmt.Println("Usage: cdncert <command> [arguments]")
-	fmt.Println("Commands:")
-	fmt.Println("  obtain  - Obtain a new SSL certificate")
-	fmt.Println("  upload  - Upload an existing certificate to Aliyun CDN")
-	fmt.Println("  auto    - Automatically obtain and upload certificate")
-	fmt.Println("\nRun 'cdncert <command> -h' for more information on a command.")
+	flag.PrintDefaults()
 }
 
-func obtainCertificate() (*certificate.Resource, error) {
+func obtainCertificate(aliAccessKey, aliSecretKey string) (*certificate.Resource, error) {
 	// Create a new ACME user
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -92,27 +90,33 @@ func obtainCertificate() (*certificate.Resource, error) {
 
 	// Create a new ACME client
 	config := lego.NewConfig(user)
-	if production {
-		config.CADirURL = lego.LEDirectoryProduction
-	} else {
-		config.CADirURL = lego.LEDirectoryStaging
-	}
 
 	client, err := lego.NewClient(config)
 	if err != nil {
-		log.Fatalf("Error creating ACME client: %v", err)
+		return nil, fmt.Errorf("无法创建 ACME 客户端: %v", err)
 	}
 
 	// Set up the DNS provider
-	provider, err := alidns.NewDNSProvider()
+	aliconfig := alidns.NewDefaultConfig()
+	aliconfig.APIKey = aliAccessKey
+	aliconfig.SecretKey = aliSecretKey
+
+	dnsProvider, err := alidns.NewDNSProviderConfig(aliconfig)
 	if err != nil {
-		log.Fatalf("Error creating DNS provider: %v", err)
+		return nil, fmt.Errorf("无法创建阿里云 DNS 提供商: %v", err)
 	}
 
-	err = client.Challenge.SetDNS01Provider(provider)
+	err = client.Challenge.SetDNS01Provider(dnsProvider, dns01.AddRecursiveNameservers([]string{"223.5.5.5:53", "223.6.6.6:53"}))
 	if err != nil {
-		log.Fatalf("Error setting DNS provider: %v", err)
+		return nil, fmt.Errorf("无法设置 DNS 提供商: %v", err)
 	}
+
+	// 注册
+	reg, err := client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
+	if err != nil {
+		return nil, fmt.Errorf("无法注册: %v", err)
+	}
+	user.Registration = reg
 
 	// Obtain the certificate
 	request := certificate.ObtainRequest{
@@ -125,12 +129,6 @@ func obtainCertificate() (*certificate.Resource, error) {
 		return nil, fmt.Errorf("error obtaining certificate: %v", err)
 	}
 
-	err = saveCertificateAndKey(certificates)
-	if err != nil {
-		return nil, fmt.Errorf("error saving certificate and key: %v", err)
-	}
-
-	fmt.Println("Certificate obtained successfully!")
 	return certificates, nil
 }
 
@@ -162,7 +160,7 @@ func saveCertificateAndKey(cert *certificate.Resource) error {
 	return nil
 }
 
-func uploadCertificate() {
+func uploadCertificate(cdnAccessKey, cdnSecretKey string) {
 	certPath := filepath.Join("certificates", domain+".crt")
 	keyPath := filepath.Join("certificates", domain+".key")
 
@@ -174,7 +172,7 @@ func uploadCertificate() {
 		log.Fatalf("Private key file not found: %s", keyPath)
 	}
 
-	err := uploadCertificateToAliyunCDN(certPath, keyPath)
+	err := uploadCertificateToAliyunCDN(certPath, keyPath, cdnAccessKey, cdnSecretKey)
 	if err != nil {
 		log.Fatalf("Error uploading certificate: %v", err)
 	}
@@ -182,8 +180,8 @@ func uploadCertificate() {
 	fmt.Println("Certificate uploaded successfully!")
 }
 
-func autoObtainAndUpload() error {
-	cert, err := obtainCertificate()
+func autoObtainAndUpload(cdnAccessKey, cdnSecretKey string, dnsAccessKey, dnsSecretKey string) error {
+	cert, err := obtainCertificate(cdnAccessKey, cdnSecretKey)
 	if err != nil {
 		return err
 	}
@@ -195,7 +193,7 @@ func autoObtainAndUpload() error {
 	}
 
 	// Upload the certificate
-	uploadCertificate()
+	uploadCertificate(cdnAccessKey, cdnSecretKey)
 
 	return nil
 }
@@ -219,7 +217,7 @@ func (u *User) GetPrivateKey() crypto.PrivateKey {
 	return u.key
 }
 
-func uploadCertificateToAliyunCDN(certPath, keyPath string) error {
+func uploadCertificateToAliyunCDN(certPath, keyPath, cdnAccessKey, cdnSecretKey string) error {
 	// 读取证书和私钥文件
 	certContent, err := ioutil.ReadFile(certPath)
 	if err != nil {
@@ -231,7 +229,7 @@ func uploadCertificateToAliyunCDN(certPath, keyPath string) error {
 	}
 
 	// 创建 CDN 客户端，使用 flag 参数 region
-	client, err := cdn.NewClientWithAccessKey(region, accessKey, secretKey)
+	client, err := cdn.NewClientWithAccessKey(region, cdnAccessKey, cdnSecretKey)
 	if err != nil {
 		return err
 	}

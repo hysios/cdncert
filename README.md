@@ -15,7 +15,7 @@ CDNCert is a command-line tool for obtaining SSL certificates from Let's Encrypt
 
 - Go 1.16 or higher
 - Aliyun account with CDN and DNS services enabled
-- Aliyun Access Key and Secret Key with necessary permissions
+- Aliyun Access Key and Secret Key with necessary permissions for both DNS and CDN services
 
 ## Installation
 
@@ -47,55 +47,103 @@ Now you can use the `cdncert` command from anywhere in your terminal.
 
 ## Usage
 
-CDNCert supports three main commands:
+CDNCert supports the following command-line flags:
 
-1. Obtain a certificate:
-   ```
-   cdncert obtain -domain example.com -email your@email.com -access-key YOUR_ACCESS_KEY -secret-key YOUR_SECRET_KEY
-   ```
+```
+Usage: cdncert <command> [arguments]
+  -cdn-access-key string
+        Aliyun CDN Access Key
+  -cdn-secret-key string
+        Aliyun CDN Secret Key
+  -dns-access-key string
+        Aliyun DNS Access Key
+  -dns-secret-key string
+        Aliyun DNS Secret Key
+  -domain string
+        The domain for which to obtain/upload the SSL certificate
+  -email string
+        Contact email address for ACME registration
+  -obtain
+        Only obtain certificate, do not upload to Aliyun CDN
+  -prod
+        Set to true to use Let's Encrypt's production environment
+  -region string
+        Aliyun CDN region (default "cn-hangzhou")
+```
 
-2. Upload a certificate:
-   ```
-   cdncert upload -domain example.com -access-key YOUR_ACCESS_KEY -secret-key YOUR_SECRET_KEY
-   ```
+Example usage:
 
-3. Automatically obtain and upload a certificate:
-   ```
-   cdncert auto -domain example.com -email your@email.com -access-key YOUR_ACCESS_KEY -secret-key YOUR_SECRET_KEY
-   ```
+```
+cdncert -domain example.com -email your@email.com -dns-access-key YOUR_DNS_ACCESS_KEY -dns-secret-key YOUR_DNS_SECRET_KEY -cdn-access-key YOUR_CDN_ACCESS_KEY -cdn-secret-key YOUR_CDN_SECRET_KEY -prod
+```
 
-Additional flags:
-- `-prod`: Set to true to use Let's Encrypt's production environment (default is staging)
-- `-region`: Specify the Aliyun CDN region (default is cn-hangzhou)
+This command will obtain a certificate for example.com and upload it to Aliyun CDN.
 
-For more information on each command, use the `-h` flag:
+To only obtain the certificate without uploading, add the `-obtain` flag:
+
+```
+cdncert -domain example.com -email your@email.com -dns-access-key YOUR_DNS_ACCESS_KEY -dns-secret-key YOUR_DNS_SECRET_KEY -cdn-access-key YOUR_CDN_ACCESS_KEY -cdn-secret-key YOUR_CDN_SECRET_KEY -obtain
+```
 
 ## Automatic Renewal with Cron
 
-To automatically renew your certificate every three months using cron on Linux, follow these steps:
+To automatically renew your certificate every two months using cron on Linux, follow these steps:
 
 1. Open your crontab file for editing:
    ```
    crontab -e
    ```
 
-2. Add the following line to run the renewal process every 3 months:
+2. Add the following line to run the renewal process every 2 months:
    ```
-   0 0 1 */3 * /path/to/cdncert auto -domain example.com -email your@email.com -access-key YOUR_ACCESS_KEY -secret-key YOUR_SECRET_KEY -prod true >> /path/to/cdncert_renewal.log 2>&1
+   0 0 1 */2 * /path/to/cdncert -domain example.com -email your@email.com -dns-access-key YOUR_DNS_ACCESS_KEY -dns-secret-key YOUR_DNS_SECRET_KEY -cdn-access-key YOUR_CDN_ACCESS_KEY -cdn-secret-key YOUR_CDN_SECRET_KEY -prod >> /path/to/cdncert_renewal.log 2>&1
    ```
 
-   Replace the following:
-   - `/path/to/cdncert` with the actual path to your cdncert executable
-   - `example.com` with your domain
-   - `your@email.com` with your email address
-   - `YOUR_ACCESS_KEY` and `YOUR_SECRET_KEY` with your Aliyun credentials
-   - `/path/to/cdncert_renewal.log` with the path where you want to store the log file
-
-   This cron job will run at midnight on the first day of every third month.
+   Replace the placeholders with your actual values.
 
 3. Save and exit the crontab editor.
 
 Make sure the cdncert executable has the necessary permissions to run, and that the log file path is writable.
 
-Note: It's recommended to run the renewal process more frequently than the actual expiration date of your certificate to account for potential issues. Let's Encrypt certificates are valid for 90 days, so running the renewal every 60 days (2 months) might be a safer option:
+Note: Running the renewal process every two months ensures that your certificate is renewed well before its 90-day expiration, accounting for potential issues or delays.
 
+## Release
+
+This project uses GoReleaser to simplify the release process. To create a new release:
+
+1. Ensure you have GoReleaser installed. If not, you can install it with:
+   ```
+   go install github.com/goreleaser/goreleaser@latest
+   ```
+
+2. Create and push a new tag:
+   ```
+   git tag -a v0.1.0 -m "First release"
+   git push origin v0.1.0
+   ```
+
+3. Run GoReleaser:
+   ```
+   goreleaser release --clean
+   ```
+
+This will create a new GitHub release with binaries for different platforms.
+
+For more information on using GoReleaser, please refer to the [GoReleaser documentation](https://goreleaser.com/).
+
+
+### Automatic Releases
+
+This project is configured with GitHub Actions to automatically create releases when a new tag is pushed. To trigger an automatic release:
+
+1. Create a new tag locally:
+   ```
+   git tag -a v1.0.0 -m "Release version 1.0.0"
+   ```
+
+2. Push the tag to GitHub:
+   ```
+   git push origin v1.0.0
+   ```
+
+GitHub Actions will automatically run GoReleaser to build and publish the release.

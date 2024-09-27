@@ -12,7 +12,7 @@ CDNCert 是一个命令行工具，用于从 Let's Encrypt 获取 SSL 证书并�
 
 - Go 1.16 或更高版本
 - 已启用 CDN 和 DNS 服务的阿里云账户
-- 具有必要权限的阿里云 Access Key 和 Secret Key
+- 具有必要权限的阿里云 Access Key 和 Secret Key（用于 DNS 和 CDN 服务）
 
 ## 安装
 
@@ -44,55 +44,102 @@ CDNCert 是一个命令行工具，用于从 Let's Encrypt 获取 SSL 证书并�
 
 ## 使用方法
 
-CDNCert 支持三个主要命令：
+CDNCert 支持以下命令行参数：
 
-1. 获取证书：
-   ```
-   cdncert obtain -domain example.com -email your@email.com -access-key YOUR_ACCESS_KEY -secret-key YOUR_SECRET_KEY
-   ```
+```
+使用方法: cdncert <命令> [参数]
+  -cdn-access-key string
+        阿里云 CDN Access Key
+  -cdn-secret-key string
+        阿里云 CDN Secret Key
+  -dns-access-key string
+        阿里云 DNS Access Key
+  -dns-secret-key string
+        阿里云 DNS Secret Key
+  -domain string
+        需要获取/上传 SSL 证书的域名
+  -email string
+        ACME 注册的联系邮箱
+  -obtain
+        仅获取证书，不上传到阿里云 CDN
+  -prod
+        设置为 true 以使用 Let's Encrypt 的生产环境
+  -region string
+        阿里云 CDN 区域（默认为 "cn-hangzhou"）
+```
 
-2. 上传证书：
-   ```
-   cdncert upload -domain example.com -access-key YOUR_ACCESS_KEY -secret-key YOUR_SECRET_KEY
-   ```
+使用示例：
 
-3. 自动获取并上传证书：
-   ```
-   cdncert auto -domain example.com -email your@email.com -access-key YOUR_ACCESS_KEY -secret-key YOUR_SECRET_KEY
-   ```
+```
+cdncert -domain example.com -email your@email.com -dns-access-key YOUR_DNS_ACCESS_KEY -dns-secret-key YOUR_DNS_SECRET_KEY -cdn-access-key YOUR_CDN_ACCESS_KEY -cdn-secret-key YOUR_CDN_SECRET_KEY -prod
+```
 
-附加标志：
-- `-prod`：设置为 true 以使用 Let's Encrypt 的生产环境（默认为测试环境）
-- `-region`：指定阿里云 CDN 区域（默认为 cn-hangzhou）
+此命令将为 example.com 获取证书并上传到阿里云 CDN。
 
-要获取每个命令的更多信息，请使用 `-h` 标志。
+要仅获取证书而不上传，请添加 `-obtain` 参数：
+
+```
+cdncert -domain example.com -email your@email.com -dns-access-key YOUR_DNS_ACCESS_KEY -dns-secret-key YOUR_DNS_SECRET_KEY -cdn-access-key YOUR_CDN_ACCESS_KEY -cdn-secret-key YOUR_CDN_SECRET_KEY -obtain
+```
 
 ## 使用 Cron 自动续期
 
-要使用 Linux 上的 cron 每三个月自动续期您的证书，请按照以下步骤操作：
+要使用 Linux 上的 cron 每两个月自动续期您的证书，请按照以下步骤操作：
 
 1. 打开您的 crontab 文件进行编辑：
    ```
    crontab -e
    ```
 
-2. 添加以下行以每 3 个月运行一次续期过程：
+2. 添加以下行以每 2 个月运行一次续期过程：
    ```
-   0 0 1 */3 * /path/to/cdncert auto -domain example.com -email your@email.com -access-key YOUR_ACCESS_KEY -secret-key YOUR_SECRET_KEY -prod true >> /path/to/cdncert_renewal.log 2>&1
+   0 0 1 */2 * /path/to/cdncert -domain example.com -email your@email.com -dns-access-key YOUR_DNS_ACCESS_KEY -dns-secret-key YOUR_DNS_SECRET_KEY -cdn-access-key YOUR_CDN_ACCESS_KEY -cdn-secret-key YOUR_CDN_SECRET_KEY -prod >> /path/to/cdncert_renewal.log 2>&1
    ```
 
-   替换以下内容：
-   - `/path/to/cdncert` 为您的 cdncert 可执行文件的实际路径
-   - `example.com` 为您的域名
-   - `your@email.com` 为您的电子邮件地址
-   - `YOUR_ACCESS_KEY` 和 `YOUR_SECRET_KEY` 为您的阿里云凭证
-   - `/path/to/cdncert_renewal.log` 为您想要存储日志文件的路径
-
-   这个 cron 任务将在每三个月的第一天午夜运行。
+   请将占位符替换为您的实际值。
 
 3. 保存并退出 crontab 编辑器。
 
 确保 cdncert 可执行文件具有必要的运行权限，并且日志文件路径是可写的。
 
-注意：建议比证书实际过期日期更频繁地运行续期过程，以应对潜在的问题。Let's Encrypt 证书的有效期为 90 天，所以每 60 天（2 个月）运行一次续期可能是一个更安全的选择：
+注意：每两个月运行一次续期过程可以确保您的证书在 90 天的有效期到期之前得到更新，以应对潜在的问题或延迟。
 
+## 发布
+
+本项目使用 GoReleaser 来简化发布过程。要创建新的发布版本：
+
+1. 确保已安装 GoReleaser。如果没有，可以使用以下命令安装：
+   ```
+   go install github.com/goreleaser/goreleaser@latest
+   ```
+
+2. 创建并推送新的标签：
+   ```
+   git tag -a v0.1.0 -m "首次发布"
+   git push origin v0.1.0
+   ```
+
+3. 运行 GoReleaser：
+   ```
+   goreleaser release --clean
+   ```
+
+这将创建一个新的 GitHub 发布版本，其中包含适用于不同平台的二进制文件。
+
+有关使用 GoReleaser 的更多信息，请参阅 [GoReleaser 文档](https://goreleaser.com/)。
+
+### 自动发布
+
+本项目配置了 GitHub Actions，当推送新标签时会自动创建发布版本。要触发自动发布：
+
+1. 在本地创建新标签：
+   ```
+   git tag -a v1.0.0 -m "发布版本 1.0.0"
+   ```
+
+2. 将标签推送到 GitHub：
+   ```
+   git push origin v1.0.0
+   ```
+
+GitHub Actions 将自动运行 GoReleaser 来构建和发布新版本。
