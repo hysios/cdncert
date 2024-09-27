@@ -1,6 +1,6 @@
 module github.com/hysios/cdncert
 
-go 1.23.0
+go 1.23
 
 require github.com/go-acme/lego/v4 v4.18.0
 
