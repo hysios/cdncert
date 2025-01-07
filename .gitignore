@@ -3,3 +3,4 @@
 
 certs/
 certificates/
+scripts/*.sh

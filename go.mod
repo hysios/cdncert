@@ -2,13 +2,17 @@ module github.com/hysios/cdncert
 
 go 1.23
 
-require github.com/go-acme/lego/v4 v4.18.0
+require (
+	github.com/aws/aws-sdk-go v1.55.5
+	github.com/go-acme/lego/v4 v4.18.0
+)
+
+require golang.org/x/time v0.5.0 // indirect
 
 require (
-	github.com/aliyun/alibaba-cloud-sdk-go v1.62.712 // indirect
-	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/aliyun/alibaba-cloud-sdk-go v1.62.712
+	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/go-acme/lego v2.7.2+incompatible // indirect
 	github.com/go-jose/go-jose/v4 v4.0.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -24,5 +28,4 @@ require (
 	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/tools v0.22.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 )
