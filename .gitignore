@@ -4,3 +4,5 @@
 certs/
 certificates/
 scripts/*.sh
+
+bin/
